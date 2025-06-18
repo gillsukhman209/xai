@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "AI Tweet Detector",
+  "version": "1.0.0",
+  "description": "Detects AI-generated content on Twitter in real-time using machine learning",
+
+  "permissions": ["storage", "activeTab"],
+
+  "host_permissions": ["*://twitter.com/*", "*://x.com/*"],
+
+  "content_scripts": [
+    {
+      "matches": ["*://twitter.com/*", "*://x.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Tweet Detector Settings"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["models/*"],
+      "matches": ["*://twitter.com/*", "*://x.com/*"]
+    }
+  ]
+}

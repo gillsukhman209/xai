@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="popup-container">
+        <div class="header">
+            <h1>🤖 AI Tweet Detector</h1>
+            <p>Detect AI-generated content on Twitter</p>
+        </div>
+
+        <div class="settings">
+            <div class="setting-item">
+                <label class="toggle-container">
+                    <span class="setting-label">Enable Detection</span>
+                    <input type="checkbox" id="enableDetection" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <label class="setting-label">Confidence Threshold: <span id="thresholdValue">70%</span></label>
+                <input type="range" id="confidenceThreshold" min="50" max="90" value="70" class="slider">
+                <div class="slider-labels">
+                    <span>50%</span>
+                    <span>90%</span>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <label class="toggle-container">
+                    <span class="setting-label">Show Confidence Scores</span>
+                    <input type="checkbox" id="showConfidence" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="stats">
+            <h3>Session Stats</h3>
+            <div class="stat-row">
+                <span>Tweets Analyzed:</span>
+                <span id="tweetsAnalyzed">0</span>
+            </div>
+            <div class="stat-row">
+                <span>AI Detected:</span>
+                <span id="aiDetected">0</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <button id="resetStats">Reset Stats</button>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
