@@ -1,361 +1,312 @@
-// AI Tweet Detector - Content Script
-// Detects AI-generated content on Twitter in real-time
+// XAI Content Script - AI Tweet Detection
+console.log("🤖 XAI Extension loaded on:", window.location.href);
 
+// Extension state
+let isEnabled = true;
+let sensitivityThreshold = 0.7;
+let processedTweets = new Set(); // Track processed tweets to avoid duplicates
+let tweetCounter = 0; // For dummy highlighting logic
+
+// Main class for AI tweet detection
 class AITweetDetector {
   constructor() {
-    this.settings = {
-      enabled: true,
-      threshold: 70,
-      showConfidence: true,
-    };
-    this.stats = {
-      tweetsAnalyzed: 0,
-      aiDetected: 0,
-    };
-    this.processedTweets = new Set();
-    this.observer = null;
-    this.isInitialized = false;
-
     this.init();
   }
 
   async init() {
-    console.log("🤖 AI Tweet Detector initializing...");
+    console.log("🚀 Initializing AI Tweet Detector...");
 
-    // Load settings and stats
+    // Load settings from storage
     await this.loadSettings();
-    await this.loadStats();
 
-    // Wait for page to be ready
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => this.start());
-    } else {
-      this.start();
+    // Step 2: Verify we're on Twitter/X
+    if (!this.isTwitterPage()) {
+      console.log("❌ Not on Twitter/X, extension will not run");
+      return;
     }
 
-    // Listen for messages from popup
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === "SETTINGS_UPDATED") {
-        this.settings = message.settings;
-        this.updateUIState();
-      }
-    });
+    console.log("✅ Twitter page detected, starting detection...");
 
-    this.isInitialized = true;
+    // Step 3: Set up MutationObserver for new tweets
+    this.setupMutationObserver();
+
+    // Process existing tweets on page load
+    this.processExistingTweets();
+
+    // Listen for messages from popup
+    this.setupMessageListener();
+  }
+
+  // Step 2: Twitter Page Detection
+  isTwitterPage() {
+    const hostname = window.location.hostname;
+    return hostname.includes("twitter.com") || hostname.includes("x.com");
   }
 
   async loadSettings() {
-    const stored = await chrome.storage.sync.get({
-      enabled: true,
-      threshold: 70,
-      showConfidence: true,
-    });
-    this.settings = stored;
-  }
-
-  async loadStats() {
-    const stored = await chrome.storage.local.get({
-      tweetsAnalyzed: 0,
-      aiDetected: 0,
-    });
-    this.stats = stored;
-  }
-
-  start() {
-    console.log("🚀 Starting AI Tweet Detector...");
-
-    // Set up mutation observer to watch for new tweets
-    this.setupMutationObserver();
-
-    // Process existing tweets on page
-    this.processExistingTweets();
-
-    // Update UI based on current settings
-    this.updateUIState();
-
-    console.log("✅ AI Tweet Detector started successfully");
-  }
-
-  setupMutationObserver() {
-    // Clean up existing observer
-    if (this.observer) {
-      this.observer.disconnect();
+    try {
+      const result = await chrome.storage.sync.get(["enabled", "sensitivity"]);
+      isEnabled = result.enabled !== false;
+      sensitivityThreshold = (result.sensitivity || 70) / 100;
+      console.log("⚙️ Settings loaded:", { isEnabled, sensitivityThreshold });
+    } catch (error) {
+      console.log("⚠️ Could not load settings, using defaults");
     }
+  }
 
-    this.observer = new MutationObserver((mutations) => {
-      if (!this.settings.enabled) return;
+  // Step 3: MutationObserver Setup
+  setupMutationObserver() {
+    const observer = new MutationObserver((mutations) => {
+      if (!isEnabled) return;
 
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            // Look for tweet containers
-            const tweets = this.findTweetsInNode(node);
+            // Look for tweet containers in the added nodes
+            const tweets = this.findTweets(node);
             tweets.forEach((tweet) => this.processTweet(tweet));
           }
         });
       });
     });
 
-    // Start observing
-    this.observer.observe(document.body, {
+    // Start observing the timeline container
+    const timelineContainer =
+      document.querySelector('[data-testid="primaryColumn"]') || document.body;
+    observer.observe(timelineContainer, {
       childList: true,
       subtree: true,
     });
-  }
 
-  findTweetsInNode(node) {
-    const tweets = [];
-
-    // Twitter/X uses various selectors for tweets
-    const tweetSelectors = [
-      '[data-testid="tweet"]',
-      'article[data-testid="tweet"]',
-      '[data-testid="tweetText"]',
-    ];
-
-    tweetSelectors.forEach((selector) => {
-      // Check if the node itself is a tweet
-      if (node.matches && node.matches(selector)) {
-        tweets.push(node);
-      }
-      // Find tweets within the node
-      const foundTweets = node.querySelectorAll
-        ? node.querySelectorAll(selector)
-        : [];
-      tweets.push(...foundTweets);
-    });
-
-    return tweets;
+    console.log("👀 MutationObserver active, watching for new tweets...");
   }
 
   processExistingTweets() {
-    const tweets = this.findTweetsInNode(document);
-    console.log(`📝 Found ${tweets.length} existing tweets to process`);
-    tweets.forEach((tweet) => this.processTweet(tweet));
+    console.log("🔍 Processing existing tweets on page...");
+    const existingTweets = this.findTweets(document);
+    existingTweets.forEach((tweet) => this.processTweet(tweet));
+    console.log(`📊 Found ${existingTweets.length} existing tweets`);
   }
 
-  async processTweet(tweetElement) {
-    // Generate unique ID for tweet
-    const tweetId = this.getTweetId(tweetElement);
-    if (!tweetId || this.processedTweets.has(tweetId)) {
-      return;
-    }
+  // Step 3 & 4: Find and identify tweet elements
+  findTweets(container) {
+    // Twitter/X uses various selectors for tweets
+    const tweetSelectors = [
+      '[data-testid="tweet"]',
+      '[data-testid="tweetText"]',
+      'article[data-testid="tweet"]',
+      'div[data-testid="cellInnerDiv"]',
+    ];
 
-    this.processedTweets.add(tweetId);
+    let tweets = [];
+    tweetSelectors.forEach((selector) => {
+      const elements = container.querySelectorAll
+        ? container.querySelectorAll(selector)
+        : container.nodeType === Node.ELEMENT_NODE &&
+          container.matches(selector)
+        ? [container]
+        : [];
 
-    // Extract tweet text
-    const tweetText = this.extractTweetText(tweetElement);
-    if (!tweetText || tweetText.length < 10) {
-      return; // Skip very short tweets
-    }
+      tweets = tweets.concat(Array.from(elements));
+    });
 
-    console.log(`🔍 Processing tweet: "${tweetText.substring(0, 50)}..."`);
-
-    // Add analyzing state
-    this.addAnalyzingState(tweetElement);
-
-    try {
-      // TODO: Replace with actual AI model prediction
-      const prediction = await this.analyzeWithAI(tweetText);
-
-      // Update stats
-      await this.updateStats("analyzed");
-
-      // Apply visual indicators based on prediction
-      if (prediction.isAI && prediction.confidence >= this.settings.threshold) {
-        this.markAsAI(tweetElement, prediction.confidence);
-        await this.updateStats("aiDetected");
-      } else {
-        this.markAsHuman(tweetElement, prediction.confidence);
-      }
-    } catch (error) {
-      console.error("❌ Error analyzing tweet:", error);
-    } finally {
-      this.removeAnalyzingState(tweetElement);
-    }
+    // Filter out already processed tweets
+    return tweets.filter((tweet) => {
+      const tweetId = this.getTweetId(tweet);
+      return tweetId && !processedTweets.has(tweetId);
+    });
   }
 
   getTweetId(tweetElement) {
-    // Try to get tweet ID from various attributes
-    const link = tweetElement.querySelector('a[href*="/status/"]');
-    if (link) {
-      const match = link.href.match(/\/status\/(\d+)/);
-      if (match) return match[1];
-    }
+    // Generate a unique ID for the tweet based on its content or position
+    const textContent = this.extractTweetText(tweetElement);
+    if (!textContent) return null;
 
-    // Fallback: use text content hash
-    const text = this.extractTweetText(tweetElement);
-    return text ? this.hashCode(text) : null;
+    // Use first 50 chars + element position as unique ID
+    const id =
+      textContent.substring(0, 50) + tweetElement.getBoundingClientRect().top;
+    return btoa(id).substring(0, 20); // Base64 encode and truncate
   }
 
+  // Step 4: Tweet Text Extraction
   extractTweetText(tweetElement) {
-    // Look for tweet text in various selectors
+    // Multiple selectors to find tweet text content
     const textSelectors = [
       '[data-testid="tweetText"]',
       ".tweet-text",
       ".js-tweet-text",
       ".TweetTextSize",
+      "div[lang]", // Tweet text often has lang attribute
+      "span",
     ];
 
     for (const selector of textSelectors) {
       const textElement = tweetElement.querySelector(selector);
-      if (textElement) {
+      if (textElement && textElement.textContent.trim().length > 10) {
         return textElement.textContent.trim();
+      }
+    }
+
+    // Fallback: get all text content and filter
+    const allText = tweetElement.textContent.trim();
+    if (allText.length > 20 && allText.length < 1000) {
+      return allText;
+    }
+
+    return null;
+  }
+
+  // Main tweet processing function
+  async processTweet(tweetElement) {
+    if (!isEnabled) return;
+
+    const tweetId = this.getTweetId(tweetElement);
+    if (!tweetId || processedTweets.has(tweetId)) return;
+
+    const tweetText = this.extractTweetText(tweetElement);
+    if (!tweetText) return;
+
+    // Mark as processed
+    processedTweets.add(tweetId);
+    tweetCounter++;
+
+    console.log(
+      `📝 Processing Tweet #${tweetCounter}:`,
+      tweetText.substring(0, 100) + "..."
+    );
+
+    // Step 5: Basic Visual Highlighting (Dummy Logic for MVP)
+    // For now, we'll highlight every 3rd tweet as "AI-detected"
+    const isAIDetected = this.dummyAIDetection(tweetText, tweetCounter);
+
+    if (isAIDetected) {
+      this.highlightTweet(
+        tweetElement,
+        isAIDetected.confidence,
+        isAIDetected.type
+      );
+    }
+  }
+
+  // Step 5: Dummy AI Detection Logic (for testing)
+  dummyAIDetection(text, counter) {
+    // Dummy logic: Mark every 3rd tweet as AI with varying confidence
+    if (counter % 3 === 0) {
+      const confidence = 0.8 + Math.random() * 0.15; // 80-95% confidence
+      return {
+        confidence: confidence,
+        type: confidence > 0.85 ? "high" : "medium",
+      };
+    }
+
+    // Also detect tweets with certain AI-like patterns (for demo)
+    const aiPatterns = [
+      /as an ai/i,
+      /i'm an ai/i,
+      /artificial intelligence/i,
+      /machine learning/i,
+      /generated.*content/i,
+    ];
+
+    for (const pattern of aiPatterns) {
+      if (pattern.test(text)) {
+        return {
+          confidence: 0.9,
+          type: "high",
+        };
       }
     }
 
     return null;
   }
 
-  async analyzeWithAI(text) {
-    // TODO: Implement actual TensorFlow.js model prediction
-    // For now, return mock prediction for testing
-    await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing time
-
-    // Mock prediction logic (replace with real model)
-    const mockConfidence = Math.random() * 100;
-    const isAI = mockConfidence > 60; // Mock threshold
-
-    return {
-      isAI,
-      confidence: mockConfidence,
-    };
-  }
-
-  markAsAI(tweetElement, confidence) {
+  // Step 5: Visual Highlighting System
+  highlightTweet(tweetElement, confidence, type) {
     console.log(
-      `🤖 Marking tweet as AI-generated (${confidence.toFixed(1)}% confidence)`
+      `🚨 AI Detected! Confidence: ${(confidence * 100).toFixed(1)}% (${type})`
     );
 
-    // Add AI detection classes
-    tweetElement.classList.add("ai-detected-tweet");
+    // Remove any existing highlights
+    this.removeHighlight(tweetElement);
 
-    // Add AI badge
-    this.addAIBadge(tweetElement, confidence);
-  }
+    // Apply border color based on confidence
+    const borderColor = type === "high" ? "#ff4444" : "#ffbb33"; // Red for high, Yellow for medium
+    const confidencePercent = Math.round(confidence * 100);
 
-  markAsHuman(tweetElement, confidence) {
-    console.log(
-      `👤 Tweet marked as human (${confidence.toFixed(1)}% confidence)`
-    );
-    tweetElement.classList.add("human-detected-tweet");
-  }
-
-  addAIBadge(tweetElement, confidence) {
-    // Remove existing badge
-    const existingBadge = tweetElement.querySelector(".ai-detector-badge");
-    if (existingBadge) existingBadge.remove();
-
-    // Create new badge
-    const badge = document.createElement("div");
-    badge.className = "ai-detector-badge new-detection";
-    badge.textContent = "AI";
-
-    // Add confidence tooltip if enabled
-    if (this.settings.showConfidence) {
-      badge.addEventListener("mouseenter", (e) => {
-        this.showConfidenceTooltip(e.target, confidence);
-      });
-      badge.addEventListener("mouseleave", () => {
-        this.hideConfidenceTooltip();
-      });
-    }
-
-    // Insert badge
+    // Apply styling
+    tweetElement.style.border = `2px solid ${borderColor}`;
+    tweetElement.style.borderRadius = "8px";
     tweetElement.style.position = "relative";
+
+    // Add confidence badge
+    const badge = document.createElement("div");
+    badge.className = "xai-detection-badge";
+    badge.innerHTML = `🤖 ${confidencePercent}% AI`;
+    badge.style.cssText = `
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: ${borderColor};
+      color: white;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: bold;
+      z-index: 1000;
+      pointer-events: none;
+    `;
+
     tweetElement.appendChild(badge);
+    tweetElement.setAttribute("data-xai-detected", "true");
   }
 
-  addAnalyzingState(tweetElement) {
-    tweetElement.classList.add("ai-analyzing");
-  }
-
-  removeAnalyzingState(tweetElement) {
-    tweetElement.classList.remove("ai-analyzing");
-  }
-
-  showConfidenceTooltip(badgeElement, confidence) {
-    // Remove existing tooltip
-    this.hideConfidenceTooltip();
-
-    const tooltip = document.createElement("div");
-    tooltip.className = "ai-confidence-tooltip";
-    tooltip.textContent = `${confidence.toFixed(
-      1
-    )}% confident this is AI-generated`;
-
-    document.body.appendChild(tooltip);
-
-    // Position tooltip
-    const badgeRect = badgeElement.getBoundingClientRect();
-    tooltip.style.left =
-      badgeRect.left + badgeRect.width / 2 - tooltip.offsetWidth / 2 + "px";
-    tooltip.style.top = badgeRect.top - tooltip.offsetHeight - 10 + "px";
-
-    // Show tooltip
-    setTimeout(() => tooltip.classList.add("show"), 10);
-
-    this.currentTooltip = tooltip;
-  }
-
-  hideConfidenceTooltip() {
-    if (this.currentTooltip) {
-      this.currentTooltip.remove();
-      this.currentTooltip = null;
+  removeHighlight(tweetElement) {
+    tweetElement.style.border = "";
+    tweetElement.style.borderRadius = "";
+    const existingBadge = tweetElement.querySelector(".xai-detection-badge");
+    if (existingBadge) {
+      existingBadge.remove();
     }
+    tweetElement.removeAttribute("data-xai-detected");
   }
 
-  async updateStats(type) {
-    if (type === "analyzed") {
-      this.stats.tweetsAnalyzed++;
-    } else if (type === "aiDetected") {
-      this.stats.aiDetected++;
-    }
+  // Message listener for popup communication
+  setupMessageListener() {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      switch (message.action) {
+        case "toggleDetection":
+          isEnabled = message.enabled;
+          console.log("🔄 Detection toggled:", isEnabled ? "ON" : "OFF");
 
-    await chrome.storage.local.set(this.stats);
-  }
+          if (!isEnabled) {
+            // Remove all existing highlights
+            document
+              .querySelectorAll('[data-xai-detected="true"]')
+              .forEach((tweet) => {
+                this.removeHighlight(tweet);
+              });
+          } else {
+            // Re-process visible tweets
+            this.processExistingTweets();
+          }
+          break;
 
-  updateUIState() {
-    // Toggle extension state on page
-    if (this.settings.enabled) {
-      document.body.classList.remove("ai-detector-disabled");
-    } else {
-      document.body.classList.add("ai-detector-disabled");
-    }
-  }
+        case "updateSensitivity":
+          sensitivityThreshold = message.sensitivity;
+          console.log("🎛️ Sensitivity updated:", sensitivityThreshold);
+          break;
+      }
 
-  hashCode(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return hash.toString();
-  }
-
-  destroy() {
-    if (this.observer) {
-      this.observer.disconnect();
-    }
-    this.hideConfidenceTooltip();
-    console.log("🛑 AI Tweet Detector destroyed");
+      sendResponse({ success: true });
+    });
   }
 }
 
-// Initialize the detector when script loads
-let detector;
-
-if (
-  window.location.hostname.includes("twitter.com") ||
-  window.location.hostname.includes("x.com")
-) {
-  detector = new AITweetDetector();
+// Initialize the detector when the page loads
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    new AITweetDetector();
+  });
+} else {
+  new AITweetDetector();
 }
-
-// Clean up on page unload
-window.addEventListener("beforeunload", () => {
-  if (detector) {
-    detector.destroy();
-  }
-});

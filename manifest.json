@@ -1,31 +1,32 @@
 {
   "manifest_version": 3,
-  "name": "AI Tweet Detector",
+  "name": "XAI - AI Content Detector",
   "version": "1.0.0",
-  "description": "Detects AI-generated content on Twitter in real-time using machine learning",
+  "description": "Detects AI-generated content on Twitter in real-time",
 
-  "permissions": ["storage", "activeTab"],
-
-  "host_permissions": ["*://twitter.com/*", "*://x.com/*"],
+  "permissions": ["activeTab", "storage"],
 
   "content_scripts": [
     {
-      "matches": ["*://twitter.com/*", "*://x.com/*"],
+      "matches": ["*://*.twitter.com/*", "*://*.x.com/*"],
       "js": ["content.js"],
-      "css": ["content.css"],
       "run_at": "document_idle"
     }
   ],
 
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "AI Tweet Detector Settings"
+    "default_popup": "popup/popup.html",
+    "default_title": "XAI Settings"
+  },
+
+  "background": {
+    "service_worker": "background.js"
   },
 
   "web_accessible_resources": [
     {
       "resources": ["models/*"],
-      "matches": ["*://twitter.com/*", "*://x.com/*"]
+      "matches": ["*://*.twitter.com/*", "*://*.x.com/*"]
     }
   ]
 }

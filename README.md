@@ -1,173 +1,105 @@
-# 🤖 AI Tweet Detector
+# XAI - AI Content Detector (Steps 1-5 Complete)
 
-A Chrome extension that detects AI-generated content on Twitter/X in real-time using machine learning.
+Chrome extension that detects AI-generated content on Twitter/X in real-time.
 
-## 🚀 Features
+## 🚀 Features Implemented (Steps 1-5)
 
-- **Real-time Detection**: Automatically analyzes tweets as you scroll through your timeline
-- **Visual Indicators**: Clear badges and color coding to identify AI-generated content
-- **Confidence Scores**: Shows how confident the model is in its predictions
-- **Customizable Settings**: Adjust detection sensitivity and toggle features
-- **Privacy-First**: All processing happens locally in your browser
-- **Performance Optimized**: Uses MutationObserver for efficient tweet detection
+✅ **Step 1: Basic Chrome Extension Setup**
 
-## 📦 Installation
+- Chrome extension manifest v3
+- Background service worker
+- Settings popup interface
 
-### Development Mode
+✅ **Step 2: Twitter Page Detection & Injection**
 
-1. Clone this repository or download the source code
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right
-4. Click "Load unpacked" and select the extension directory
-5. The extension should now appear in your browser toolbar
+- Content script runs only on Twitter/X domains
+- Automatic injection when visiting twitter.com or x.com
 
-### Production Mode
+✅ **Step 3: Tweet Detection with MutationObserver**
 
-_Coming soon to Chrome Web Store_
+- Real-time detection of new tweets as they load
+- Processes existing tweets on page load
+- Avoids duplicate processing
 
-## 🎯 How It Works
+✅ **Step 4: Tweet Text Extraction**
 
-1. **Tweet Detection**: Uses MutationObserver to detect new tweets in real-time
-2. **Text Extraction**: Extracts tweet content from Twitter's DOM structure
-3. **AI Analysis**: Runs text through a TensorFlow.js model (currently mock data for MVP)
-4. **Visual Feedback**: Applies badges and styling based on AI confidence scores
+- Extracts text content from various tweet formats
+- Handles different Twitter DOM structures
+- Filters out non-tweet content
 
-## ⚙️ Settings
+✅ **Step 5: Basic Visual Highlighting**
 
-Access settings by clicking the extension icon in your browser toolbar:
+- **Red border + badge** for high confidence AI detection (>85%)
+- **Yellow border + badge** for medium confidence AI detection (70-85%)
+- Dummy logic: Every 3rd tweet + AI-related keywords
 
-- **Enable Detection**: Toggle the extension on/off
-- **Confidence Threshold**: Set minimum confidence (50%-90%) for AI detection
-- **Show Confidence Scores**: Display confidence percentages on hover
-- **Session Stats**: View how many tweets have been analyzed
+## 🧪 How to Test
 
-## 🎨 Visual Indicators
+### 1. Load Extension in Chrome
 
-### AI-Generated Content
+1. Open Chrome and go to `chrome://extensions/`
+2. Enable "Developer mode" (top right)
+3. Click "Load unpacked"
+4. Select this `xai` folder
+5. Extension should appear in your extensions list
 
-- **Red border** around the tweet
-- **"AI" badge** in the top-right corner
-- **Subtle glow effect** for attention
-- **Confidence tooltip** on hover (if enabled)
+### 2. Test on Twitter
 
-### Human Content
+1. Go to [twitter.com](https://twitter.com) or [x.com](https://x.com)
+2. Open Developer Console (F12)
+3. Look for console messages starting with 🤖
+4. You should see tweets being processed as you scroll
 
-- **Green border** (subtle indication)
-- No badge or special highlighting
+### 3. Test Visual Highlighting
 
-### Loading State
+- Every 3rd tweet should get highlighted with red/yellow border
+- Tweets containing "AI", "artificial intelligence", etc. should be highlighted
+- Look for 🤖 badges showing confidence percentages
 
-- **Spinning indicator** while analyzing
+### 4. Test Settings Popup
 
-## 🔧 Development
+1. Click the extension icon in Chrome toolbar
+2. Toggle "Enable Detection" on/off
+3. Adjust sensitivity slider
+4. Watch console for setting changes
 
-### Project Structure
+## 🎯 Expected Behavior
+
+**Console Output:**
+
+```
+🤖 XAI Extension loaded on: https://twitter.com/home
+🚀 Initializing AI Tweet Detector...
+✅ Twitter page detected, starting detection...
+👀 MutationObserver active, watching for new tweets...
+📝 Processing Tweet #1: This is a sample tweet...
+📝 Processing Tweet #2: Another tweet here...
+🚨 AI Detected! Confidence: 87.3% (high)
+```
+
+**Visual Changes:**
+
+- Red bordered tweets with "🤖 87% AI" badges
+- Yellow bordered tweets with "🤖 73% AI" badges
+
+## 🔧 Current Limitations (MVP)
+
+- Uses dummy AI detection logic (every 3rd tweet)
+- No real TensorFlow.js model yet
+- Only works on main timeline (not replies/comments)
+- Basic tweet text extraction
+
+## 📁 File Structure
 
 ```
 xai/
-├── manifest.json       # Chrome extension configuration
-├── content.js          # Main content script
-├── content.css         # Styling for tweet indicators
-├── popup.html          # Settings popup interface
-├── popup.js            # Popup functionality
-├── popup.css           # Popup styling
-├── icons/              # Extension icons
-└── README.md           # This file
+├── manifest.json          # Extension configuration
+├── background.js          # Service worker
+├── content.js            # Main detection logic
+├── popup/
+│   ├── popup.html        # Settings UI
+│   └── popup.js          # Settings logic
+└── README.md            # This file
 ```
 
-### Current Implementation Status
-
-#### ✅ Phase 1: Core Extension Structure
-
-- [x] Chrome extension manifest
-- [x] Content script foundation
-- [x] Settings popup interface
-- [x] Visual styling system
-- [x] Tweet detection with MutationObserver
-- [x] Mock AI analysis pipeline
-
-#### 🚧 Phase 2: AI Model Integration (Next)
-
-- [ ] TensorFlow.js setup
-- [ ] DistilBERT model integration
-- [ ] Real AI text analysis
-- [ ] Model optimization
-
-#### 📋 Phase 3: Advanced Features (Future)
-
-- [ ] Reply/comment detection
-- [ ] Performance optimizations
-- [ ] Advanced visual indicators
-- [ ] Export/import settings
-
-### Development Setup
-
-1. Make changes to the source files
-2. Go to `chrome://extensions/`
-3. Click the refresh button on the extension card
-4. Reload any Twitter/X tabs to see changes
-
-### Testing
-
-Currently uses mock AI predictions for testing. To test:
-
-1. Load the extension in development mode
-2. Navigate to Twitter/X
-3. Scroll through your timeline
-4. Look for tweets with red borders and "AI" badges
-5. Check the popup for stats and settings
-
-## 🔬 Technical Details
-
-### Tweet Detection Strategy
-
-- Uses `MutationObserver` to watch for DOM changes
-- Targets Twitter's `[data-testid="tweet"]` elements
-- Prevents duplicate processing with unique tweet IDs
-- Gracefully handles Twitter's dynamic loading
-
-### AI Model (Planned)
-
-- **Model**: DistilBERT-based AI text classifier
-- **Size**: ~25MB (optimized for browser)
-- **Accuracy**: Target 85%+ on AI vs human text
-- **Performance**: Sub-second analysis per tweet
-
-### Browser Compatibility
-
-- Chrome 88+ (Manifest V3)
-- Edge 88+
-- Other Chromium-based browsers
-
-## 📊 Privacy & Data
-
-- **Local Processing**: All AI analysis happens in your browser
-- **No Data Collection**: No tweet content is sent to external servers
-- **Minimal Permissions**: Only requires access to Twitter/X domains
-- **Storage**: Settings and stats stored locally using Chrome's storage API
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📜 License
-
-MIT License - see LICENSE file for details
-
-## 🐛 Known Issues
-
-- Mock AI predictions (real model coming in Phase 2)
-- May need selector updates if Twitter/X changes their DOM structure
-- Performance optimization needed for very long sessions
-
-## 📮 Support
-
-For issues, feature requests, or questions, please open an issue on GitHub.
-
----
-
-_Built with ❤️ for a more transparent social media experience_
+Ready for Steps 6-10! 🎉
